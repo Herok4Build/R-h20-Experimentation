@@ -1,0 +1,243 @@
+---
+title: "Tutorial-For-H20"
+author: "Thomas Johnson III"
+date: "9/21/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Setup
+
+Installing the package:
+```{r}
+#install.packages(h2o)
+#install.packages(tidyverse)
+#install.packages(dslabs)
+```
+
+Link to Java SE supported package: https://www.oracle.com/java/technologies/javase/jdk15-archive-downloads.html
+
+Loading necessary libraries:
+
+```{r}
+library(h2o)
+library(dslabs)
+library(tidyverse)
+```
+
+Initializing an h2o cluster:
+
+```{r}
+set.seed(10)
+h2o.init(max_mem_size = "3G") #Please alter the value of max_mem_size based on the amount of memory your system can provide or that you can allocate to the H2O cluster. Currently set at 3GB of memory.
+# If the h2o cluster is not initialized, an error asking for the h2o cluster to be initialized will occur. 
+```
+
+
+The first dataset will be the Breast Cancer Wisconsin Diagnostic Dataset from UCI Machine Learning Repository. There are 596 instances with thirty input features. The goal will be using h2o to generate models that will be able to classify an instance given the input data.
+
+```{r}
+data(brca) #Getting the first dataset
+head(data.frame(brca))
+brca_frame <- as.h2o(data.frame(brca))
+```
+
+## How to Split Datasets
+
+```{r}
+brca_splits <- h2o.splitFrame(brca_frame, ratios = 0.7) #Splitting into train and test datasets.
+brca_training_set <- brca_splits[[1]] #Training dataset created
+brca_testing_set <- brca_splits[[2]] #Testing dataset created
+```
+
+As a precaution, h2o can take up significant resources. If your computer slows down while the code is running that is to be expected. ```max_runtime_secs = 30``` sets the max time that h2o can use to build models to be no more than 30 seconds.
+
+## Using h2o.automl()
+
+```{r}
+y_brca_data_label <- "y" # Name of the labels that the models will be training classify with
+aml_of_brca <- h2o.automl(y = y_brca_data_label, training_frame = brca_training_set, max_runtime_secs = 30, nfolds = 3,  project_name = "automated_ML_first_run", seed =10) # Building a set of machine learning models from the data. Using 3 fold cross validation.
+#can also use max_models top construct a specific number of models.
+lb_of_brca <- h2o.get_leaderboard(aml_of_brca) # Getting the leaderboard of the models that were generated.
+```
+
+The models that were generated can now be viewed with next cell.
+
+```{r}
+head(lb_of_brca)
+dim(lb_of_brca)
+```
+
+If we increase the time, more models can be generated as a result:
+
+```{r}
+aml_of_brca_set_2 <- h2o.automl(y = y_brca_data_label, training_frame = brca_testing_set, max_runtime_secs = 60, nfolds = 3, project_name = "automated_ML_second_run", seed = 10) # Building a set of machine learning models from the data. Using 3 fold cross validation.
+lb_of_brca_set_2 <- h2o.get_leaderboard(aml_of_brca_set_2) # Getting the leaderboard of the models that were generated.
+```
+
+```{r}
+head(lb_of_brca_set_2)
+dim(lb_of_brca_set_2)
+```
+
+
+## Information on Some of the Metrics
+
+Reference: https://docs.h2o.ai/h2o/latest-stable/h2o-docs/performance-and-prediction.html?highlight=AUC#auc-area-under-the-roc-curve, Copyright 2016-2021 H2O.ai. Last updated on Sep 14, 2021
+
+(The following information is from the source above)
+
+The Area Under the ROC Curve (auc) is used as a metric to evaluate the performance of a classification. Should be used with caution as it only considers the true positives and false positives.
+
+Area Under the Precision-Recall Curve is another metric to evaluate performance. True positives, false positives and false negatives are taken into consideration, but not true negatives. Considered much more reliable than AUC when handling a dataset that lacks equilibrium in the data.
+
+Additionally, more metrics can be found within the H2O documentation.
+
+## Accessing the Models From the AutoML Object
+
+```{r}
+#Get the model with the best perfromance as displayed in the leaderboard
+best_model <- h2o.get_best_model(aml_of_brca)
+print(best_model) #Prints multiple dataframes on the performance metrics and structure of that particular model
+```
+
+```{r}
+#Grabbing a model based on the model's ID
+different_model_by_ID <- h2o.getModel("GLM_1_AutoML_20210928_120820")#Type in a model ID in the parentheses from the automl output
+print(different_model_by_ID)
+```
+
+## Predictions of a Model
+
+Building a random forest with 75 trees:
+
+```{r}
+brca_rand_forest.trees_75 <- h2o.randomForest(training_frame = brca_training_set, y = y_brca_data_label, ntrees = 75, nfolds = 3, seed=10, keep_cross_validation_predictions = TRUE)
+```
+
+Now predicting on the test dataset:
+
+```{r}
+pred_of_rand_forest <- h2o.predict(brca_rand_forest.trees_75, newdata = brca_testing_set) #Using the test set from splitting the brca frame earlier
+```
+
+```{r}
+brca_rand_forest.trees_75
+```
+
+
+```{r}
+print(pred_of_rand_forest)
+```
+
+
+## Building Specific Models
+
+We can also build specific models based on the options provided. Support for particular models such as XGBoost will differ by operating system. We will start with the GLM Model:
+
+Reference:https://docs.h2o.ai/h2o/latest-stable/h2o-docs/data-science/glm.html
+
+```{r}
+#Generates the GLM model
+first_glm <- h2o.glm(model_id ="First_GLM",y = y_brca_data_label, training_frame = brca_training_set, nfolds = 3, seed =10, keep_cross_validation_predictions = TRUE) 
+first_glm
+```
+
+The h2o.explain() function allows for further insight for the model's predictions on the testing set. This includes a chart on relative variable importance.
+
+```{r}
+h2o.explain(first_glm, newdata =brca_testing_set)
+```
+
+Next is a deep learning model:
+Reference: https://docs.h2o.ai/h2o/latest-stable/h2o-docs/data-science/deep-learning.html
+
+```{r}
+first_deep_learn.mod <- h2o.deeplearning(y = y_brca_data_label, training_frame = brca_training_set, model_id = "brca_deep_learn_mod_1", nfolds = 3, epochs = 11, seed =10, keep_cross_validation_predictions = TRUE) #Building a deep learning bodel for classifying BRCA data
+first_deep_learn.mod
+```
+
+```{r}
+h2o.explain(first_deep_learn.mod, newdata =brca_testing_set)
+```
+
+Next is an ensemble with the glm and the deep learning model:
+
+```{r}
+first_ensemble_brca <- h2o.stackedEnsemble(y = y_brca_data_label, training_frame = brca_training_set,model_id = "brca_st_ensemble_mod_1", metalearner_nfolds =3, base_models = list(first_deep_learn.mod, first_glm,brca_rand_forest.trees_75)) #A list of specified models to used for the stacked ensemble is required.
+first_ensemble_brca #Note that the ensemble depends heavily on the base models to be able to achieve high performacne.
+```
+
+## Regression
+
+Time for some regression with the diamonds dataset, also have to slice the dataset for memory reasons:
+
+```{r}
+data(diamonds)# Loading the diamonds data
+class(diamonds)
+diamonds_fame_reduced <- slice_sample(diamonds, n =25000)
+diamonds_fame_reduced$cut<- as.factor(as.character(diamonds_fame_reduced$cut))
+diamonds_fame_reduced$color <- as.factor(as.character(diamonds_fame_reduced$color))
+diamonds_fame_reduced$clarity <- as.factor(as.character(diamonds_fame_reduced$clarity))
+head(diamonds_fame_reduced)
+```
+
+
+```{r}
+diamonds_frame <- as.h2o(data.frame(diamonds_fame_reduced)) #Converting to h2o frame
+diamonds_split <- h2o.splitFrame(diamonds_frame, ratios = .75)# Splitting the data
+#Now we get the train and test frames:
+diamonds_train <- diamonds_split[[1]]
+diamonds_test <- diamonds_split[[2]]
+diamonds_label <- "price"
+```
+
+
+```{r}
+diamonds_automl_collection_1 <- h2o.automl(y = diamonds_label, training_frame = diamonds_train, max_runtime_secs = 45, nfolds = 5, seed = 10) #Running automl for 45 seconds with 5-fold cross validation for diamonds data
+```
+
+```{r}
+diamonds_automl_collection.leaderboard<- h2o.get_leaderboard(diamonds_automl_collection_1)
+print(diamonds_automl_collection.leaderboard)
+```
+
+```{r}
+best_model <- h2o.get_best_model(diamonds_automl_collection_1)
+print(h2o.predict(best_model, newdata = diamonds_test))
+```
+
+
+```{r}
+diamonds_automl_chosen_model <- h2o.getModel("StackedEnsemble_BestOfFamily_AutoML_20210928_145212")
+print(diamonds_automl_chosen_model)
+```
+
+```{r}
+print(h2o.predict(diamonds_automl_chosen_model, newdata = diamonds_test)) # Getting the predicted values for the chosen model
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
