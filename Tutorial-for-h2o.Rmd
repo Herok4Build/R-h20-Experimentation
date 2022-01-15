@@ -18,7 +18,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # Setup
 
 Installing the package:
-```{r}
+```{r possible-installs}
 #install.packages(h2o)
 #install.packages(tidyverse)
 #install.packages(dslabs)
@@ -28,7 +28,7 @@ Link to Java SE supported package: https://www.oracle.com/java/technologies/java
 
 Loading necessary libraries:
 
-```{r message=FALSE, results='hide'}
+```{r load-libs, message=FALSE, results='hide'}
 library(h2o)
 library(dslabs)
 library(tidyverse)
@@ -36,7 +36,7 @@ library(tidyverse)
 
 Initializing an h2o cluster:
 
-```{r message=FALSE, results='hide'}
+```{r seed-setting-and-cluster-init, message=FALSE, results='hide'}
 set.seed(10)
 h2o.init(max_mem_size = "3G") #Please alter the value of max_mem_size based on the amount of memory your system can provide or that you can allocate to the H2O cluster. Currently set at 3GB of memory.
 # If the h2o cluster is not initialized, an error asking for the h2o cluster to be initialized will occur. 
@@ -45,7 +45,7 @@ h2o.init(max_mem_size = "3G") #Please alter the value of max_mem_size based on t
 
 The first dataset will be the Breast Cancer Wisconsin Diagnostic Dataset from UCI Machine Learning Repository. There are 596 instances with thirty input features. The goal will be using h2o to generate models that will be able to classify an instance given the input data.
 
-```{r}
+```{r getting-brca-data, results='hide'}
 data(brca) #Getting the first dataset
 head(data.frame(brca))
 brca_frame <- as.h2o(data.frame(brca))
@@ -53,8 +53,9 @@ brca_frame <- as.h2o(data.frame(brca))
 
 ## How to Split Datasets
 
-```{r}
-brca_splits <- h2o.splitFrame(brca_frame, ratios = 0.7) #Splitting into train and test datasets.
+```{r data-partitioning}
+brca_splits <- h2o.splitFrame(brca_frame, ratios = 0.7) #Splitting into train 
+# and test datasets.
 brca_training_set <- brca_splits[[1]] #Training dataset created
 brca_testing_set <- brca_splits[[2]] #Testing dataset created
 ```
@@ -63,7 +64,7 @@ As a precaution, h2o can take up significant resources. If your computer slows d
 
 ## Using h2o.automl()
 
-```{r}
+```{r first-automl-generation-instance,message = FALSE, results='hide'}
 y_brca_data_label <- "y" # Name of the labels that the models will be training classify with
 aml_of_brca <- h2o.automl(y = y_brca_data_label, training_frame = brca_training_set, max_runtime_secs = 30, nfolds = 3,  project_name = "automated_ML_first_run", seed =10) # Building a set of machine learning models from the data. Using 3 fold cross validation.
 #can also use max_models top construct a specific number of models.
@@ -72,19 +73,19 @@ lb_of_brca <- h2o.get_leaderboard(aml_of_brca) # Getting the leaderboard of the 
 
 The models that were generated can now be viewed with next cell.
 
-```{r}
+```{r getting-the-leaderboard, }
 head(lb_of_brca)
 dim(lb_of_brca)
 ```
 
 If we increase the time, more models can be generated as a result:
 
-```{r}
+```{r second automl-generation-instance, results='hide'}
 aml_of_brca_set_2 <- h2o.automl(y = y_brca_data_label, training_frame = brca_testing_set, max_runtime_secs = 60, nfolds = 3, project_name = "automated_ML_second_run", seed = 10) # Building a set of machine learning models from the data. Using 3 fold cross validation.
 lb_of_brca_set_2 <- h2o.get_leaderboard(aml_of_brca_set_2) # Getting the leaderboard of the models that were generated.
 ```
 
-```{r}
+```{r displaying-second-leaderboard, }
 head(lb_of_brca_set_2)
 dim(lb_of_brca_set_2)
 ```
@@ -104,13 +105,13 @@ Additionally, more metrics can be found within the H2O documentation.
 
 ## Accessing the Models From the AutoML Object
 
-```{r}
-#Get the model with the best perfromance as displayed in the leaderboard
+```{r getting-best-automl-model, }
+#Get the model with the best performance as displayed in the leaderboard
 best_model <- h2o.get_best_model(aml_of_brca)
 print(best_model) #Prints multiple dataframes on the performance metrics and structure of that particular model
 ```
 
-```{r}
+```{r grabbing-specific-models}
 #Grabbing a model based on the model's ID
 #different_model_by_ID <- h2o.getModel("GLM_1_AutoML_20210928_120820")#Type in a model ID in the parentheses from the automl output
 #print(different_model_by_ID)
@@ -120,22 +121,22 @@ print(best_model) #Prints multiple dataframes on the performance metrics and str
 
 Building a random forest with 75 trees:
 
-```{r}
+```{r random-forest-instance-1,message=FALSE, results= 'hide'}
 brca_rand_forest.trees_75 <- h2o.randomForest(training_frame = brca_training_set, y = y_brca_data_label, ntrees = 75, nfolds = 3, seed=10, keep_cross_validation_predictions = TRUE)
 ```
 
 Now predicting on the test dataset:
 
-```{r}
+```{r random-forest-instance-1-predictions}
 pred_of_rand_forest <- h2o.predict(brca_rand_forest.trees_75, newdata = brca_testing_set) #Using the test set from splitting the brca frame earlier
 ```
 
-```{r}
+```{r output-random-forest}
 brca_rand_forest.trees_75
 ```
 
 
-```{r}
+```{r ourtput-predictions-of-random-forest}
 print(pred_of_rand_forest)
 ```
 
@@ -146,7 +147,7 @@ We can also build specific models based on the options provided. Support for par
 
 Reference:https://docs.h2o.ai/h2o/latest-stable/h2o-docs/data-science/glm.html
 
-```{r}
+```{r construct-general-linear-model. results='hide'}
 #Generates the GLM model
 first_glm <- h2o.glm(model_id ="First_GLM",y = y_brca_data_label, training_frame = brca_training_set, nfolds = 3, seed =10, keep_cross_validation_predictions = TRUE) 
 first_glm
@@ -154,28 +155,32 @@ first_glm
 
 The h2o.explain() function allows for further insight for the model's predictions on the testing set. This includes a chart on relative variable importance.
 
-```{r}
+```{r use-h2o-explain-on-glm}
 h2o.explain(first_glm, newdata =brca_testing_set)
 ```
 
 Next is a deep learning model:
 Reference: https://docs.h2o.ai/h2o/latest-stable/h2o-docs/data-science/deep-learning.html
 
-```{r}
+```{r construct-deep-learning-model, results='hide'}
 first_deep_learn.mod <- h2o.deeplearning(y = y_brca_data_label, training_frame = brca_training_set, model_id = "brca_deep_learn_mod_1", nfolds = 3, epochs = 11, seed =10, keep_cross_validation_predictions = TRUE) #Building a deep learning bodel for classifying BRCA data
 first_deep_learn.mod
 ```
 
-```{r}
+```{r use-h2o-explain-on-deep-learning-model}
 h2o.explain(first_deep_learn.mod, newdata =brca_testing_set)
 ```
 
 Next is an ensemble with the glm and the deep learning model:
 
-```{r}
+```{r constructing-stacked-ensemble, results='hide'}
 first_ensemble_brca <- h2o.stackedEnsemble(y = y_brca_data_label, training_frame = brca_training_set,model_id = "brca_st_ensemble_mod_1", metalearner_nfolds =3, base_models = list(first_deep_learn.mod, first_glm,brca_rand_forest.trees_75)) #A list of specified models to used for the stacked ensemble is required.
+```
+
+```{r output-stacked-ensemble}
 first_ensemble_brca #Note that the ensemble depends heavily on the base models to be able to achieve high performacne.
 ```
+
 
 ## Regression
 
